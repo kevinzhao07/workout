@@ -1,4 +1,4 @@
-sodiffrom flask import Flask
+flask import Flask
 app = Flask(__name__)
 
 
