@@ -40,22 +40,24 @@
             // Compute the position of each group on the pie:
             var pie = d3.pie()
                 .value(function(d) { return d.value; })
+                .sort(null);
+
+            var arc = d3.arc()
+                .innerRadius(100)
+                .outerRadius(radius);
 
             var data_ready = pie(d3.entries(data))
 
             // Build the pie chart: Basically, each part of the pie is a path that we build using the arc function.
-            svg.selectAll('sections')
+            let path = svg.selectAll('sections')
                 .data(data_ready)
-                .enter()
-                .append('path')
-                .attr('d', d3.arc()
-                    .innerRadius(100)         // This is the size of the donut hole
-                    .outerRadius(radius)
-                    )
+              .enter().append('path')
+                .attr('d', arc)
                 .attr('fill', (d,i) => color[i])
                 .attr("stroke", "black")
                 .style("stroke-width", "2px")
                 .style("opacity", 0.7)
+                .each(function(d) { this._current = d; }) // store the initial angles
                 .on('click', function(d, i) {
                     if (filtered.includes(d.data.key)) {
                         filtered.splice(filtered.indexOf(d.data.key),1)
@@ -65,8 +67,40 @@
                         filtered.push(d.data.key)
                         d3.select(this).attr('fill', 'lightblue')
                     }
+                }
+            ) 
 
-                })
+            d3.selectAll("#buttonFats")
+                .on("click", updateF);
+
+            d3.selectAll("#buttonCarbs")
+                .on("click", updateC);
+
+            d3.selectAll("#buttonProtein")
+                .on("click", updateP);
+
+            d3.selectAll("#buttonOther")
+                .on("click", updateO);
+
+            function updateF() {update(0)}
+            function updateC() {update(2)}
+            function updateP() {update(1)}
+            function updateO() {update(3)}
+
+            function update(i) {
+                data_ready[i].value += 50;
+                path.data(pie(data_ready));
+                path.transition().duration(750).attrTween("d", arcTween); // redraw the arcs
+            }
+
+            function arcTween(a) {
+                var i = d3.interpolate(this._current, a);
+                this._current = i(0);
+                return function(t) {
+                    return arc(i(t));
+                };
+            }
+            
         }
 
         function sum(data, index) {
@@ -97,4 +131,12 @@
 
         make_donut_table('data.csv');
     </script>
+
+    <form>
+        <button type="button" id="buttonFats"> +50 fats </button>
+        <button type="button" id="buttonCarbs"> +50 carbs </button>
+        <button type="button" id="buttonProtein"> +50 protein </button>
+        <button type="button" id="buttonOther"> +50 other </button>
+    </form>
+
 </body>
