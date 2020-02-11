@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title> donut test </title>
+    <script src="http://d3js.org/d3.v5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.4.7/crossfilter.min.js"></script>
+</head>
+
+<body>
+    <script>
+        async function make_donut_table(filename) {
+            const DATA = await d3.csv(filename, type);
+            var CF = crossfilter(DATA);
+            var f = sum(DATA, 'fats');
+            var p = sum(DATA, 'protein');
+            var c = sum(DATA, 'carbohydrates');
+            var o = sum(DATA, 'other');
+
+            var data = {fats: f, protein: p, carbohydrates: c, other: o}
+            var filtered = [];
+
+            var width = 450,
+            height = 450,
+            margin = 40;
+
+            var radius = Math.min(width, height) / 2 - margin;
+
+            // append the svg object to the div called 'my_dataviz'
+            var svg = d3.select("body")
+                .append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                .append("g")
+                    .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+            // set the color scale
+            const color = d3.schemePaired.slice(4);
+
+            // Compute the position of each group on the pie:
+            var pie = d3.pie()
+                .value(function(d) { return d.value; })
+
+            var data_ready = pie(d3.entries(data))
+
+            // Build the pie chart: Basically, each part of the pie is a path that we build using the arc function.
+            svg.selectAll('sections')
+                .data(data_ready)
+                .enter()
+                .append('path')
+                .attr('d', d3.arc()
+                    .innerRadius(100)         // This is the size of the donut hole
+                    .outerRadius(radius)
+                    )
+                .attr('fill', (d,i) => color[i])
+                .attr("stroke", "black")
+                .style("stroke-width", "2px")
+                .style("opacity", 0.7)
+                .on('click', function(d, i) {
+                    if (filtered.includes(d.data.key)) {
+                        filtered.splice(filtered.indexOf(d.data.key),1)
+                        d3.select(this).attr('fill', color[i])  
+                    }
+                    else {
+                        filtered.push(d.data.key)
+                        d3.select(this).attr('fill', 'lightblue')
+                    }
+
+                })
+        }
+
+        function sum(data, index) {
+            var total = 0;
+            for (i = 0; i < data.length; i++) {
+                if (index == 'fats') {
+                    total += data[i].fats;
+                }
+                else if (index == 'carbohydrates') {
+                    total += data[i].carbohydrates;
+                }
+                else if (index == 'other') {
+                    total += parseInt(data[i].other);
+                }
+                else {
+                    total += data[i].protein;
+                }           
+            }
+            return total;
+        }
+
+        function type(d) {
+            d.fats = +d.fats;
+            d.carbohydrates = +d.carbohydrates;
+            d.protein = +d.protein;
+            return d;
+        }
+
+        make_donut_table('data.csv');
+    </script>
+</body>
