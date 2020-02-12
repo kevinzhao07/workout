@@ -70,25 +70,24 @@
                 }
             ) 
 
-            d3.selectAll("#buttonFats")
+            d3.selectAll("#updateCals")
                 .on("click", updateF);
 
-            d3.selectAll("#buttonCarbs")
-                .on("click", updateC);
+            function updateF() {
+                var varFat = document.getElementById('fat').value;
+                var varCarbs = document.getElementById('carbs').value;
+                var varProtein = document.getElementById('protein').value;
+                var varOther = document.getElementById('other').value;
 
-            d3.selectAll("#buttonProtein")
-                .on("click", updateP);
+                update(varFat, varCarbs, varProtein, varOther);
+            }
 
-            d3.selectAll("#buttonOther")
-                .on("click", updateO);
+            function update(val0, val2, val1, val3) {
 
-            function updateF() {update(0)}
-            function updateC() {update(2)}
-            function updateP() {update(1)}
-            function updateO() {update(3)}
-
-            function update(i) {
-                data_ready[i].value += 50;
+                data_ready[0].value += isNaN(parseInt(val0)) ? 0 : parseInt(val0);
+                data_ready[1].value += isNaN(parseInt(val1)) ? 0 : parseInt(val1);
+                data_ready[2].value += isNaN(parseInt(val2)) ? 0 : parseInt(val2);
+                data_ready[3].value += isNaN(parseInt(val3)) ? 0 : parseInt(val3);
                 path.data(pie(data_ready));
                 path.transition().duration(750).attrTween("d", arcTween); // redraw the arcs
             }
@@ -129,14 +128,21 @@
             return d;
         }
 
+        function wawa() {
+            var variable = document.getElementById('fat').value;
+            alert(variable);
+        }
+
         make_donut_table('data.csv');
     </script>
 
     <form>
-        <button type="button" id="buttonFats"> +50 fats </button>
-        <button type="button" id="buttonCarbs"> +50 carbs </button>
-        <button type="button" id="buttonProtein"> +50 protein </button>
-        <button type="button" id="buttonOther"> +50 other </button>
+        <br/><br/><br/>
+        Fats: <input type="text" id="fat"> <br/>
+        Carbs: <input type="text" id="carbs"> <br/>
+        Protein: <input type="text" id="protein"> <br/>
+        Other: <input type="text" id="other"> <br/>
+        <button type="button" id="updateCals"> ADD CALORIES </button>
     </form>
 
 </body>
