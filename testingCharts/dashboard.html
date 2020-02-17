@@ -5,9 +5,24 @@
     <title> donut test </title>
     <script src="http://d3js.org/d3.v5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.4.7/crossfilter.min.js"></script>
+    <style>
+        .bar {
+        fill: #499bdd;
+        clip-path: url(#clip); /* clip bar with rectangle */
+        }
+
+        .avgLine {
+        fill: none;
+        stroke: #73000A;
+        stroke-width: 2px;
+        clip-path: url(#clip); /* clip line with rectangle */
+        }
+    </style>
 </head>
 
 <body>
+
+    <!-- making donut -->
     <script>
         async function make_donut_table(filename) {
             const DATA = await d3.csv(filename, type);
@@ -112,7 +127,7 @@
                     total += data[i].carbohydrates;
                 }
                 else if (index == 'other') {
-                    total += parseInt(data[i].other);
+                    total += data[i].other;
                 }
                 else {
                     total += data[i].protein;
@@ -125,6 +140,7 @@
             d.fats = +d.fats;
             d.carbohydrates = +d.carbohydrates;
             d.protein = +d.protein;
+            d.other = +d.other;
             return d;
         }
 
@@ -136,6 +152,7 @@
         make_donut_table('data.csv');
     </script>
 
+    <!-- form for donut -->
     <form>
         <br/><br/><br/>
         Fats: <input type="text" id="fat"> <br/>
@@ -143,6 +160,258 @@
         Protein: <input type="text" id="protein"> <br/>
         Other: <input type="text" id="other"> <br/>
         <button type="button" id="updateCals"> ADD CALORIES </button>
+    </form>
+
+    <!-- making scrollable bars (can have points) -->
+    <script>
+
+        let margin = {top: 20, right: 30, bottom: 110, left: 40},
+            width = 980 - margin.left - margin.right,
+            height = 400 - margin.top - margin.bottom;
+        
+        let margin2 = {top: 400-70, right: 20, bottom: 30, left: 40},
+            height2 = 400 - margin2.top - margin2.bottom;
+
+        var svg = d3.select("body").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom);
+
+        const parseDate = d3.timeParse("%Y-%m-%d");
+
+        // set the ranges
+        let x = d3.scaleTime().range([0, width]),
+            y = d3.scaleLinear().range([height, 0]),
+            x2 = d3.scaleTime().range([0, width]),
+            y2 = d3.scaleLinear().range([height2, 0]);
+
+        var xAxis = d3.axisBottom(x),
+            yAxis = d3.axisRight(y).ticks(10),
+            xAxis2 = d3.axisBottom(x2);
+
+        // Add brush in x-dimension
+        var brush = d3.brushX()
+            .extent([[0, 0], [width, height2]])
+            .on("brush", brushed)
+            .on("end", brushended) // add brush snapping
+
+        // define the focus moving avg
+        let movingAvg1 = d3.line()
+            .x(d => x(d.key))
+            .y(d => y(d.avg))
+
+        // define the context moving avg
+        let movingAvg2 = d3.line()
+            .x(d => x2(d.key))
+            .y(d => y2(d.avg))
+
+        // focus is the micro level view
+        var focus = svg.append("g")
+            .attr("class", "focus")
+            .attr("transform", `translate(${margin.left},${margin.top})`)
+
+        // context is the macro level view
+        var context = svg.append("g")
+            .attr("class", "context")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        // clipping rectangle
+        svg.append("defs").append("clipPath")
+            .attr("id", "clip")
+            .append("rect")
+            .attr("width", width)
+            .attr("height", height)
+    
+        async function makeBarChart(filename) {
+            const DATA = await d3.csv(filename, type);
+            var CF = crossfilter(DATA);
+            var category = CF.dimension(d => d.category);
+            categories = ['squat', 'overhead', 'bench', 'deadlift'];
+            category = category.filter(d => categories.includes(d))
+            date = CF.dimension(d => d.date);
+            dategrp = date.group();
+            data = dategrp.all();
+            category.filter('squat');
+            fixData(data);
+            let movingAvgData = movingAverage(data, 7);
+
+            const endDate = d3.timeDay.offset(d3.max(data, d => d.key),1)
+            x.domain([d3.min(data, d => d.key), endDate]);
+            y.domain([0, d3.max(data, d => d.value)]);
+            x2.domain(x.domain());
+            y2.domain(y.domain());
+
+            // add the focus bar chart
+            let bars = focus.selectAll(".bar")
+                .data(data)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d3.timeHour.offset(d.key,1)))
+                .attr("y", d => y(d.value))
+                .attr("width", width / data.length * 22/24)
+                .attr("height", d => height - y(d.value))
+
+            // add the focus moving avg line path
+            let avgLine1 = focus.append('path')
+                .datum(movingAvgData)
+                .attr('class', 'avgLine')
+                .attr('d', movingAvg1)
+                
+            // add the focus x-axis
+            focus.append("g")
+                .attr("class", "axis--x")
+                .attr("transform", `translate(0,${height})`)
+                .call(xAxis);
+
+            // add the focus y-axis
+            focus.append("g")
+                .attr("class", "axis--y")
+                .attr('transform', `translate(${width},0)`)
+                .call(yAxis);
+
+            // add the context bar chart
+            let bars2 = context.selectAll(".bar")
+                .data(data)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x2(d3.timeHour.offset(d.key,1)))
+                .attr("y", d => y2(d.value))
+                .attr("width", width / data.length * 22/24)
+                .attr("height", d => height2 - y2(d.value))
+
+            // add the context moving avg line path
+            let avgLine2 = context.append('path')
+                .datum(movingAvgData)
+                .attr('class', 'avgLine')
+                .attr('d', movingAvg2)
+                
+            // add the context x-axis
+            context.append("g")
+                .attr("class", "axis--x")
+                .attr("transform", `translate(0,${height2})`)
+                .call(xAxis2);
+
+            // add the context brush
+            beginDate = d3.timeDay.offset(endDate, -14)
+            context.append("g")
+                .attr("class", "brush")
+                .call(brush)
+                .call(brush.move, [x(beginDate), x(endDate)]); // initialize brush selection
+
+            // callback function for radio button
+            d3.selectAll("input")
+                .on("change", update);
+
+
+            function update() {
+                category.filter(this.value) // filter category
+                fixData(data);
+                let easeFunc = d3.easeQuad
+                let T = 750
+                // bar transition
+                bars.data(data) // bind new data  
+                .transition().ease(easeFunc).duration(T)
+                    .attr("y", d => y(d.value))
+                    .attr("height", d => height - y(d.value))
+                bars2.data(data) // bind new data  
+                .transition().ease(easeFunc).duration(T)
+                    .attr("y", d => y2(d.value))
+                    .attr("height", d => height2 - y2(d.value))
+                // line transition
+                movingAvgData = movingAverage(data, 7)
+                avgLine1.datum(movingAvgData)
+                .transition().ease(easeFunc).duration(T)
+                    .attr('d', movingAvg1)
+                avgLine2.datum(movingAvgData)
+                .transition().ease(easeFunc).duration(T)
+                    .attr('d', movingAvg2)
+            }
+
+            function fixData(data) {
+                var exercises = category.top(Infinity);
+                for (var i = 0; i < data.length; ++i) {
+                    data[i].value = 0;
+                }
+                for (var i = 0; i < exercises.length; ++i) {
+                    var indexInData = findIndex(data, exercises[i].date);
+                    var weightInData = exercises[i].weight;
+                    data[indexInData].value = weightInData;
+                }
+            }
+
+            function findIndex(data, value) {
+                for (var i = 0; i < data.length; ++i) {
+                    if (data[i].key.toString() == value.toString()) {
+                        return i;
+                    }
+                }
+            }
+
+        }
+
+        function type(d) {
+            d.date = parseDate(d.date);
+            d.weight = +d.weight;
+            return d;
+        }
+
+        function brushed() {
+            const selection = d3.event.selection || x2.range(); // default brush selection
+            x.domain(selection.map(x2.invert, x2)); // new focus x-domain
+            ms = x.domain()[1] - x.domain()[0]
+            days = ms / 1000 / 60 / 60 / 24
+            focus.selectAll(".bar")
+                .attr("x", d => x(d3.timeHour.offset(d.key,1)))
+                .attr("width", width / days * 22/24)
+
+            focus.select(".avgLine")
+                .attr("d", movingAvg1);
+            focus.select(".axis--x")
+                .call(xAxis)
+        }
+
+        // brush snapping function
+        function brushended() {
+            if (!d3.event.sourceEvent) return; // Only transition after input.
+            if (!d3.event.selection) brushed(); // Empty selection returns default brush
+            let d0 = d3.event.selection.map(x2.invert),
+                d1 = d0.map(d3.timeDay.round);
+
+            // If empty when rounded, use floor & ceil instead.
+            if (d1[0] >= d1[1]) {
+                d1[0] = d3.timeDay.floor(d0[0]);
+                d1[1] = d3.timeDay.offset(d1[0]);
+            }
+
+            d3.select(this)
+                .transition()
+                .call(d3.event.target.move, d1.map(x2));
+        }
+
+        // calculates simple moving average over N days
+        function movingAverage(data, N) {
+        return data.map((row, index, total) => {
+            const start = Math.max(0, index - N);
+            const end = index;
+            const period = [d3.timeDay.offset(row.key, -7), row.key]
+            const subset = total.slice(start, end + 1);
+            const sum = subset.reduce((a,b) => a + b.value, 0);
+            return {
+            key: d3.timeHour.offset(row.key, 12), // offset point by 12 hrs (noon)
+            avg: sum / subset.length,
+            };
+        });
+        };
+
+        makeBarChart('data1.csv');
+
+    </script>
+
+    <!-- form for chart -->
+    <form>
+        <label><input type="radio" name="workout" value="squat" checked="checked">Squat</label>
+        <label><input type="radio" name="workout" value="deadlift">Deadlift</label>
+        <label><input type="radio" name="workout" value="bench">Bench Press</label>
+        <label><input type="radio" name="workout" value="overhead">Overhead Press</label>
     </form>
 
 </body>
